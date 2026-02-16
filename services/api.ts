@@ -12,17 +12,23 @@ const getEnv = (key: string) => {
   return '';
 };
 
-// 1. Prioritize Vercel Env Var -> 2. Fallback to provided hardcoded ID
-export const CLIENT_ID = getEnv('VITE_SPOTIFY_CLIENT_ID') || "3c31fcca3a2b4ed89009a4997fc5407c";
+// Helper to get Client ID from Store > Env > Fallback
+export const getClientId = () => {
+  const storeId = useStore.getState().apiConfig.spotifyClientId;
+  if (storeId) return storeId;
+  return getEnv('VITE_SPOTIFY_CLIENT_ID') || "3c31fcca3a2b4ed89009a4997fc5407c";
+};
 
 // Determine Redirect URI dynamically based on environment
-// IMPORTANT: Add 'https://your-vercel-project.vercel.app/' to Spotify Dashboard Redirect URIs
 export const REDIRECT_URI = window.location.origin + (window.location.origin.endsWith('/') ? '' : '/');
 
 const BASE_URL = "https://api.spotify.com/v1";
 const TOKEN_ENDPOINT = "https://accounts.spotify.com/api/token";
 const AUTH_ENDPOINT = "https://accounts.spotify.com/authorize";
 const SCOPES = [
+  "streaming", 
+  "user-read-email", 
+  "user-read-private",
   "user-read-currently-playing",
   "user-read-recently-played",
   "user-read-playback-state",
@@ -54,10 +60,17 @@ const base64encode = (input: ArrayBuffer) => {
 };
 
 export const redirectToAuthCodeFlow = async () => {
-  if (!CLIENT_ID) {
-    alert("Spotify Client ID가 설정되지 않았습니다. Vercel 환경변수를 확인해주세요.");
+  const clientId = getClientId();
+  
+  if (!clientId) {
+    alert("Spotify Client ID가 설정되지 않았습니다. 설정(⚙️) 메뉴에서 API Key를 등록해주세요.");
+    useStore.getState().toggleSettings(true);
     return;
   }
+
+  // Debugging helper
+  console.log(`[Spotify Auth] Redirecting with Client ID: ${clientId}`);
+  console.log(`[Spotify Auth] Redirect URI: ${REDIRECT_URI}`);
 
   const codeVerifier = generateRandomString(64);
   const hashed = await sha256(codeVerifier);
@@ -67,7 +80,7 @@ export const redirectToAuthCodeFlow = async () => {
 
   const params = new URLSearchParams({
     response_type: 'code',
-    client_id: CLIENT_ID,
+    client_id: clientId,
     scope: SCOPES.join(' '),
     code_challenge_method: 'S256',
     code_challenge: codeChallenge,
@@ -79,10 +92,10 @@ export const redirectToAuthCodeFlow = async () => {
 
 export const getAccessToken = async (code: string) => {
   const codeVerifier = window.localStorage.getItem('code_verifier');
+  const clientId = getClientId();
 
-  if (!codeVerifier) {
-    throw new Error("Code verifier not found");
-  }
+  if (!codeVerifier) throw new Error("Code verifier not found");
+  if (!clientId) throw new Error("Client ID not found");
 
   const payload = {
     method: 'POST',
@@ -90,7 +103,7 @@ export const getAccessToken = async (code: string) => {
       'Content-Type': 'application/x-www-form-urlencoded',
     },
     body: new URLSearchParams({
-      client_id: CLIENT_ID,
+      client_id: clientId,
       grant_type: 'authorization_code',
       code,
       redirect_uri: REDIRECT_URI,
@@ -110,10 +123,10 @@ export const getAccessToken = async (code: string) => {
 
 export const refreshAccessToken = async () => {
   const refreshToken = useStore.getState().refreshToken;
+  const clientId = getClientId();
 
-  if (!refreshToken) {
-    throw new Error("No refresh token available");
-  }
+  if (!refreshToken) throw new Error("No refresh token available");
+  if (!clientId) throw new Error("Client ID not found");
 
   const payload = {
     method: 'POST',
@@ -123,7 +136,7 @@ export const refreshAccessToken = async () => {
     body: new URLSearchParams({
       grant_type: 'refresh_token',
       refresh_token: refreshToken,
-      client_id: CLIENT_ID,
+      client_id: clientId,
     }),
   };
 
@@ -150,6 +163,7 @@ const fetchFromSpotify = async (endpoint: string, options: RequestInit = {}) => 
   let token = useStore.getState().token;
   const expiresAt = useStore.getState().expiresAt;
 
+  // Optimistic check for expiration
   if (expiresAt && Date.now() > expiresAt - 60000) {
     try {
       token = await refreshAccessToken();
@@ -173,6 +187,7 @@ const fetchFromSpotify = async (endpoint: string, options: RequestInit = {}) => 
     },
   });
 
+  // Handle Token Expiry (401)
   if (response.status === 401) {
     try {
       token = await refreshAccessToken();
@@ -194,7 +209,8 @@ const fetchFromSpotify = async (endpoint: string, options: RequestInit = {}) => 
   }
 
   if (!response.ok) {
-    throw new Error(`Spotify API Error: ${response.statusText}`);
+    const err = await response.json().catch(() => ({ error: { message: response.statusText } }));
+    throw new Error(err.error?.message || `Spotify API Error: ${response.statusText}`);
   }
 
   return response.json();
@@ -208,11 +224,29 @@ export const fetchTopTracks = () => fetchFromSpotify('/me/top/tracks?limit=10&ti
 
 // Player API
 export const fetchPlayerState = (): Promise<PlaybackState | null> => fetchFromSpotify('/me/player');
-export const startResumePlayback = () => fetchFromSpotify('/me/player/play', { method: 'PUT' });
+
+interface PlayOptions {
+  context_uri?: string;
+  uris?: string[];
+  offset?: { position: number } | { uri: string };
+  position_ms?: number;
+}
+
+export const startResumePlayback = (options: PlayOptions = {}) => {
+  return fetchFromSpotify('/me/player/play', { 
+    method: 'PUT',
+    body: JSON.stringify(options)
+  });
+};
+
 export const pausePlayback = () => fetchFromSpotify('/me/player/pause', { method: 'PUT' });
 export const skipToNext = () => fetchFromSpotify('/me/player/next', { method: 'POST' });
 export const skipToPrevious = () => fetchFromSpotify('/me/player/previous', { method: 'POST' });
 export const setVolume = (percent: number) => fetchFromSpotify(`/me/player/volume?volume_percent=${percent}`, { method: 'PUT' });
+export const transferPlayback = (deviceId: string) => fetchFromSpotify('/me/player', {
+    method: 'PUT',
+    body: JSON.stringify({ device_ids: [deviceId], play: true })
+});
 
 export const searchTracks = (query: string, limit = 10): Promise<SearchResults> => {
   if (!query) return Promise.resolve({});

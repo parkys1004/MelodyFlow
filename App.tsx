@@ -12,7 +12,9 @@ import { Button } from './components/ui/button';
 import { LogOut, User, ChevronLeft, ChevronRight, Loader2, Menu } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchUserProfile } from './services/api';
-import { Toaster } from './components/ui/toaster';
+import { Toaster, toast } from './components/ui/toaster';
+import { ApiKeySettings } from './components/common/ApiKeySettings';
+import { WebPlayback } from './components/common/WebPlayback';
 
 const App = () => {
   const { token, setAuth, logout, currentView } = useStore();
@@ -32,8 +34,10 @@ const App = () => {
           
           // Clean URL
           window.history.replaceState({}, document.title, "/");
+          toast.success("Spotify 연결 성공!");
         } catch (error) {
           console.error("Authentication failed", error);
+          toast.error("로그인 실패: Redirect URI 설정을 확인해주세요.");
         } finally {
           setIsAuthenticating(false);
         }
@@ -79,6 +83,8 @@ const App = () => {
   return (
     <div className="flex h-screen w-full bg-black text-foreground overflow-hidden font-sans p-0 md:p-2 gap-0 md:gap-2">
       <Toaster />
+      <ApiKeySettings />
+      {token && <WebPlayback />}
       
       {/* 1. Left Sidebar (Navigation) - Hidden on Mobile */}
       <div className="hidden md:flex w-64 flex-col rounded-lg overflow-hidden h-[calc(100vh-16px-96px)]">

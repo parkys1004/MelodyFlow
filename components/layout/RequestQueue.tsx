@@ -1,29 +1,83 @@
-import React from 'react';
-import { MoreHorizontal, User, Music2, CheckCircle2, Clock } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { MoreHorizontal, User, Music2, CheckCircle2, Clock, Loader2, RefreshCw } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { getSupabaseClient, fetchSongRequests, isSupabaseConfigured } from '../../lib/supabase';
+import { useStore } from '../../lib/store';
+import { toast } from '../ui/toaster';
 
 interface RequestItem {
-  id: number;
+  id: string;
   title: string;
   artist: string;
-  user: string;
-  status: 'PENDING' | 'PLAYED';
-  time: string;
-  cover: string;
+  user_name: string;
+  status: 'PENDING' | 'PLAYED' | 'REJECTED';
+  created_at: string;
+  cover_url: string;
 }
 
-const MOCK_REQUESTS: RequestItem[] = [
-  { id: 2, title: "I AM", artist: "IVE", user: "Wonyoung_1004", status: "PENDING", time: "방금 전", cover: "https://picsum.photos/50/50?random=1" },
-  { id: 3, title: "Spicy", artist: "aespa", user: "Karina_Luv", status: "PENDING", time: "2분 전", cover: "https://picsum.photos/50/50?random=2" },
-  { id: 4, title: "Super Shy", artist: "NewJeans", user: "Bunnies_01", status: "PENDING", time: "5분 전", cover: "https://picsum.photos/50/50?random=3" },
-  { id: 5, title: "UNFORGIVEN", artist: "LE SSERAFIM", user: "Fearless", status: "PENDING", time: "8분 전", cover: "https://picsum.photos/50/50?random=4" },
-  { id: 6, title: "Queencard", artist: "(G)I-DLE", user: "Neverland", status: "PENDING", time: "12분 전", cover: "https://picsum.photos/50/50?random=5" },
-  { id: 1, title: "Ditto", artist: "NewJeans", user: "Hanni_Pham", status: "PLAYED", time: "10분 전", cover: "https://picsum.photos/50/50?random=6" },
-  { id: 7, title: "Hype Boy", artist: "NewJeans", user: "Attention", status: "PLAYED", time: "25분 전", cover: "https://picsum.photos/50/50?random=7" },
-  { id: 8, title: "Love Dive", artist: "IVE", user: "DIVE_Into", status: "PLAYED", time: "30분 전", cover: "https://picsum.photos/50/50?random=8" },
-];
-
 export const RequestQueue = () => {
+  const [requests, setRequests] = useState<RequestItem[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [filter, setFilter] = useState<'ALL' | 'PENDING'>('ALL');
+  const configured = isSupabaseConfigured();
+  const { toggleSettings } = useStore();
+
+  const loadRequests = async () => {
+    if (!configured) return;
+    setIsLoading(true);
+    try {
+      const data = await fetchSongRequests();
+      setRequests(data as any || []);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadRequests();
+    
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    const channel = supabase
+      .channel('public:requests_queue')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'requests' },
+        (payload) => {
+           if (payload.eventType === 'INSERT') {
+             setRequests((prev) => [payload.new as any, ...prev]);
+             toast.info(`새로운 신청곡: ${payload.new.title}`);
+           } else if (payload.eventType === 'UPDATE') {
+             setRequests((prev) => 
+               prev.map((item) => item.id === payload.new.id ? payload.new as any : item)
+             );
+           }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [configured]);
+
+  const filteredRequests = requests.filter(r => {
+      if (filter === 'PENDING') return r.status === 'PENDING';
+      return r.status !== 'REJECTED'; // Show Pending and Played in ALL
+  });
+
+  const getTimeAgo = (dateStr: string) => {
+      const diff = Date.now() - new Date(dateStr).getTime();
+      const mins = Math.floor(diff / 60000);
+      if (mins < 1) return '방금 전';
+      if (mins < 60) return `${mins}분 전`;
+      const hours = Math.floor(mins / 60);
+      return `${hours}시간 전`;
+  };
+
   return (
     <div className="flex flex-col h-full w-full bg-[#121212] text-foreground">
       <div className="p-4 pt-6 pb-2 border-b border-white/5">
@@ -32,21 +86,47 @@ export const RequestQueue = () => {
             <Music2 className="w-5 h-5 text-primary" />
             신청곡 대기열
             </h2>
-            <MoreHorizontal className="text-zinc-400 w-5 h-5 cursor-pointer hover:text-white" />
+            <button onClick={loadRequests} className="text-zinc-400 hover:text-white transition-colors">
+                <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
+            </button>
         </div>
         
         <div className="flex gap-2">
-             <button className="px-3 py-1.5 rounded-full bg-zinc-800 text-white text-xs font-semibold hover:bg-zinc-700 transition-colors">전체 목록</button>
-             <button className="px-3 py-1.5 rounded-full bg-transparent text-zinc-400 text-xs font-semibold hover:bg-zinc-800 hover:text-white transition-colors border border-zinc-700">대기중</button>
+             <button 
+                onClick={() => setFilter('ALL')}
+                className={cn("px-3 py-1.5 rounded-full text-xs font-semibold transition-colors", filter === 'ALL' ? "bg-zinc-800 text-white" : "text-zinc-400 hover:text-white hover:bg-zinc-800")}
+            >
+                전체 목록
+            </button>
+             <button 
+                onClick={() => setFilter('PENDING')}
+                className={cn("px-3 py-1.5 rounded-full text-xs font-semibold transition-colors border", filter === 'PENDING' ? "bg-zinc-800 text-white border-zinc-700" : "bg-transparent text-zinc-400 border-zinc-800 hover:bg-zinc-800 hover:text-white")}
+            >
+                대기중
+            </button>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto custom-scrollbar px-2 py-2 pb-24">
-        {MOCK_REQUESTS.map((req) => (
+        {!configured && (
+             <div className="p-4 text-center text-zinc-500 text-sm">
+                <p className="mb-2">API 키 설정이 필요합니다.</p>
+                <button onClick={() => toggleSettings(true)} className="underline text-primary">설정하기</button>
+             </div>
+        )}
+
+        {configured && filteredRequests.length === 0 && !isLoading && (
+            <div className="flex flex-col items-center justify-center h-40 text-zinc-500">
+                <p className="text-sm">신청곡이 없습니다.</p>
+                <p className="text-xs mt-1">첫 번째 곡을 신청해보세요!</p>
+            </div>
+        )}
+
+        {filteredRequests.map((req) => (
           <div key={req.id} className="group flex items-center gap-3 p-2 rounded-md hover:bg-zinc-800/50 transition-colors cursor-default mb-1">
             <div className="relative flex-shrink-0">
                 <img 
-                  src={req.cover} 
+                  src={req.cover_url || "https://via.placeholder.com/50"} 
                   alt={req.title} 
                   className={cn("w-12 h-12 rounded bg-zinc-800 object-cover shadow-sm", req.status === 'PLAYED' && "opacity-40 grayscale")} 
                   loading="lazy" 
@@ -74,24 +154,17 @@ export const RequestQueue = () => {
                   </h3>
                   <span className="text-[10px] text-zinc-500 whitespace-nowrap flex items-center gap-0.5">
                     <Clock className="w-3 h-3" />
-                    {req.time}
+                    {getTimeAgo(req.created_at)}
                   </span>
               </div>
               <p className="text-xs text-zinc-400 truncate mb-1">{req.artist}</p>
               <div className="flex items-center gap-1.5 bg-zinc-800/50 w-fit px-1.5 py-0.5 rounded text-[10px]">
                  <User className="w-3 h-3 text-zinc-400" />
-                 <span className="text-zinc-400 font-medium">{req.user}</span>
+                 <span className="text-zinc-400 font-medium">{req.user_name}</span>
               </div>
             </div>
           </div>
         ))}
-        
-        <div className="p-4 mt-6 mx-2 bg-gradient-to-br from-zinc-800 to-zinc-900 rounded-lg text-center border border-white/5">
-            <p className="text-xs text-zinc-300 font-medium mb-3">듣고 싶은 노래가 있나요?</p>
-            <button className="w-full py-2 bg-primary text-primary-foreground text-xs font-bold rounded-full hover:scale-105 transition-transform shadow-lg">
-                신청곡 추가하기
-            </button>
-        </div>
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { RequestStatus } from '../types';
+import { useStore } from './store';
 
 const getEnv = (key: string) => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -10,24 +11,45 @@ const getEnv = (key: string) => {
   return '';
 };
 
-const SUPABASE_URL = getEnv('VITE_SUPABASE_URL');
-const SUPABASE_ANON_KEY = getEnv('VITE_SUPABASE_ANON_KEY');
+// Singleton-like instance management
+let supabaseInstance: SupabaseClient | null = null;
+let lastUrl = '';
+let lastKey = '';
 
-// Export configuration status so components can adapt
-export const isSupabaseConfigured = !!SUPABASE_URL && !!SUPABASE_ANON_KEY;
+export const getSupabase = () => {
+  const { apiConfig } = useStore.getState();
+  
+  // Prioritize user config, then env fallback
+  const url = apiConfig.supabaseUrl || getEnv('VITE_SUPABASE_URL');
+  const key = apiConfig.supabaseKey || getEnv('VITE_SUPABASE_ANON_KEY');
 
-if (!isSupabaseConfigured) {
-  console.warn("Supabase environment variables (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY) are missing. Database features will be disabled.");
-}
+  if (!url || !key) return null;
 
-// Fallback to prevent crash on init if keys are missing
-export const supabase = createClient(
-  SUPABASE_URL || 'https://placeholder.supabase.co',
-  SUPABASE_ANON_KEY || 'placeholder'
-);
+  // Re-create client if config changes
+  if (!supabaseInstance || url !== lastUrl || key !== lastKey) {
+    try {
+      supabaseInstance = createClient(url, key);
+      lastUrl = url;
+      lastKey = key;
+    } catch (e) {
+      console.error("Invalid Supabase Config", e);
+      return null;
+    }
+  }
+
+  return supabaseInstance;
+};
+
+export const isSupabaseConfigured = () => {
+  return !!getSupabase();
+};
+
+// --- API Functions ---
 
 export const insertSongRequest = async (track: any, user: any) => {
-  if (!isSupabaseConfigured) {
+  const sb = getSupabase();
+  
+  if (!sb) {
     console.warn("Supabase not configured. Request simulated.");
     // Return fake success for demo purposes
     await new Promise(resolve => setTimeout(resolve, 500));
@@ -36,7 +58,7 @@ export const insertSongRequest = async (track: any, user: any) => {
 
   if (!user) throw new Error("User not logged in");
 
-  const { data, error } = await supabase
+  const { data, error } = await sb
     .from('requests')
     .insert([
       {
@@ -60,11 +82,12 @@ export const insertSongRequest = async (track: any, user: any) => {
 };
 
 export const fetchSongRequests = async () => {
-  if (!isSupabaseConfigured) {
+  const sb = getSupabase();
+  if (!sb) {
     return [];
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await sb
     .from('requests')
     .select('*')
     .order('created_at', { ascending: false });
@@ -77,9 +100,10 @@ export const fetchSongRequests = async () => {
 };
 
 export const updateRequestStatus = async (id: string | number, status: RequestStatus) => {
-  if (!isSupabaseConfigured) return null;
+  const sb = getSupabase();
+  if (!sb) return null;
 
-  const { data, error } = await supabase
+  const { data, error } = await sb
     .from('requests')
     .update({ status })
     .eq('id', id)
@@ -91,3 +115,6 @@ export const updateRequestStatus = async (id: string | number, status: RequestSt
   }
   return data;
 };
+
+// Export raw client getter for subscriptions
+export const getSupabaseClient = getSupabase;

@@ -1,15 +1,18 @@
 import React, { useEffect, useState } from 'react';
-import { supabase, fetchSongRequests, updateRequestStatus, isSupabaseConfigured } from '../../lib/supabase';
+import { getSupabaseClient, fetchSongRequests, updateRequestStatus, isSupabaseConfigured } from '../../lib/supabase';
 import { RequestStatus } from '../../types';
 import { StatusBadge } from '../common/StatusBadge';
 import { Button } from '../ui/button';
-import { Check, X, Clock, Loader2, ListMusic } from 'lucide-react';
+import { Check, X, Clock, Loader2, ListMusic, Settings } from 'lucide-react';
 import { Card, CardContent } from '../ui/card';
 import { cn } from '../../lib/utils';
+import { useStore } from '../../lib/store';
 
 export const DJPage = () => {
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const { toggleSettings } = useStore();
+  const configured = isSupabaseConfigured();
 
   useEffect(() => {
     const loadRequests = async () => {
@@ -23,10 +26,11 @@ export const DJPage = () => {
       }
     };
     loadRequests();
-  }, []);
+  }, [configured]); // Reload if configuration changes
 
   useEffect(() => {
-    if (!isSupabaseConfigured) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
 
     const channel = supabase
       .channel('public:requests')
@@ -50,7 +54,7 @@ export const DJPage = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [configured]);
 
   const handleStatusChange = async (id: string, status: RequestStatus) => {
     try {
@@ -88,9 +92,13 @@ export const DJPage = () => {
         </div>
       </div>
 
-      {!isSupabaseConfigured && (
-        <div className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 p-3 rounded mb-6 text-sm">
-           Supabase가 설정되지 않았습니다. 신청곡 기능이 데모 모드로 작동합니다.
+      {!configured && (
+        <div className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 p-4 rounded mb-6 text-sm flex items-center justify-between">
+           <span>Supabase API Key가 설정되지 않았습니다. 실제 데이터 저장을 위해 설정이 필요합니다.</span>
+           <Button size="sm" variant="outline" className="border-yellow-500 text-yellow-500 hover:bg-yellow-500 hover:text-black" onClick={() => toggleSettings(true)}>
+             <Settings className="h-3 w-3 mr-2" />
+             키 설정하기
+           </Button>
         </div>
       )}
 

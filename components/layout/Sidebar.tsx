@@ -1,11 +1,11 @@
 import React from 'react';
-import { Home, Search, Library, PlusSquare, Heart, Globe, Radio, Mic2 } from 'lucide-react';
+import { Home, Search, Library, PlusSquare, Heart, Globe, Radio, Mic2, Settings } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Button } from '../ui/button';
 import { useStore } from '../../lib/store';
 
 export const Sidebar = () => {
-  const { currentView, setView } = useStore();
+  const { currentView, setView, toggleSettings } = useStore();
 
   return (
     <aside className="w-full flex flex-col h-full bg-[#121212] text-zinc-400">
@@ -98,6 +98,18 @@ export const Sidebar = () => {
                     </div>
                 ))}
             </div>
+        </div>
+
+        {/* Settings Button Area */}
+        <div className="p-2 border-t border-zinc-800 mt-auto">
+            <Button 
+                variant="ghost" 
+                onClick={() => toggleSettings(true)}
+                className="w-full justify-start text-zinc-400 hover:text-white hover:bg-zinc-800"
+            >
+                <Settings className="mr-3 h-5 w-5" />
+                설정 및 키 관리
+            </Button>
         </div>
       </div>
     </aside>
