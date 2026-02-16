@@ -1,22 +1,18 @@
 import { useStore } from '../lib/store';
 import { SearchResults, RecommendationsResponse } from '../types';
 
-// Safely access environment variables
+// Standardize env var access for Vite
 const getEnv = (key: string) => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (import.meta as any).env[key];
-  }
-  return '';
+  return (import.meta as any).env[key] || '';
 };
 
-// Use the provided Client ID as a fallback if env var is missing
+// 1. Prioritize Vercel Env Var -> 2. Fallback to provided hardcoded ID
 export const CLIENT_ID = getEnv('VITE_SPOTIFY_CLIENT_ID') || "3c31fcca3a2b4ed89009a4997fc5407c";
 
-// Note: Client Secret is NOT used in frontend PKCE flow for security reasons.
-// Ensure 'http://localhost:3000/' (or your deployed URL) is added to Redirect URIs in Spotify Dashboard.
-export const REDIRECT_URI = window.location.origin + "/"; 
+// Determine Redirect URI dynamically based on environment
+// IMPORTANT: Add 'https://your-vercel-project.vercel.app/' to Spotify Dashboard Redirect URIs
+export const REDIRECT_URI = window.location.origin + (window.location.origin.endsWith('/') ? '' : '/');
 
 const BASE_URL = "https://api.spotify.com/v1";
 const TOKEN_ENDPOINT = "https://accounts.spotify.com/api/token";
@@ -54,7 +50,7 @@ const base64encode = (input: ArrayBuffer) => {
 
 export const redirectToAuthCodeFlow = async () => {
   if (!CLIENT_ID) {
-    alert("Client ID가 설정되지 않았습니다.");
+    alert("Spotify Client ID가 설정되지 않았습니다. Vercel 환경변수를 확인해주세요.");
     return;
   }
 
