@@ -11,8 +11,13 @@ const getEnv = (key: string) => {
   return '';
 };
 
-export const CLIENT_ID = getEnv('VITE_SPOTIFY_CLIENT_ID');
+// Use the provided Client ID as a fallback if env var is missing
+export const CLIENT_ID = getEnv('VITE_SPOTIFY_CLIENT_ID') || "3c31fcca3a2b4ed89009a4997fc5407c";
+
+// Note: Client Secret is NOT used in frontend PKCE flow for security reasons.
+// Ensure 'http://localhost:3000/' (or your deployed URL) is added to Redirect URIs in Spotify Dashboard.
 export const REDIRECT_URI = window.location.origin + "/"; 
+
 const BASE_URL = "https://api.spotify.com/v1";
 const TOKEN_ENDPOINT = "https://accounts.spotify.com/api/token";
 const AUTH_ENDPOINT = "https://accounts.spotify.com/authorize";
@@ -49,7 +54,7 @@ const base64encode = (input: ArrayBuffer) => {
 
 export const redirectToAuthCodeFlow = async () => {
   if (!CLIENT_ID) {
-    alert("VITE_SPOTIFY_CLIENT_ID 환경 변수가 설정되지 않았습니다. .env 파일을 확인하거나 Vercel 환경 변수를 설정해주세요.");
+    alert("Client ID가 설정되지 않았습니다.");
     return;
   }
 

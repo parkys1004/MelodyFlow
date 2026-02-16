@@ -34,9 +34,6 @@ const App = () => {
           window.history.replaceState({}, document.title, "/");
         } catch (error) {
           console.error("Authentication failed", error);
-          // Toast will be handled by Global Query Client if implemented there, 
-          // or we can manually alert here but let's rely on standard error handling flows.
-          // Since this is init logic, manual alert/toast is safer.
         } finally {
           setIsAuthenticating(false);
         }
@@ -54,14 +51,7 @@ const App = () => {
   });
 
   const handleLogin = async () => {
-    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    
-    if (isLocal) {
-        await redirectToAuthCodeFlow();
-    } else {
-        alert("알림: 이 데모 환경에서는 리다이렉트 URI 설정 제한으로 인해 실제 Spotify 로그인이 작동하지 않을 수 있습니다. 코드를 로컬 환경(http://localhost:3000)에서 실행하고 Spotify Dashboard에서 Redirect URI를 설정하세요.");
-        await redirectToAuthCodeFlow();
-    }
+    await redirectToAuthCodeFlow();
   };
 
   if (isAuthenticating) {
