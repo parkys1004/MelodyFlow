@@ -45,6 +45,38 @@ export interface SpotifyPlaylist {
   owner: { display_name: string };
 }
 
+export interface SpotifyDevice {
+  id: string;
+  is_active: boolean;
+  is_private_session: boolean;
+  is_restricted: boolean;
+  name: string;
+  type: string;
+  volume_percent: number;
+}
+
+export interface PlaybackState {
+  device: SpotifyDevice;
+  repeat_state: string;
+  shuffle_state: boolean;
+  context: {
+    type: string;
+    href: string;
+    external_urls: { spotify: string };
+    uri: string;
+  } | null;
+  timestamp: number;
+  progress_ms: number;
+  is_playing: boolean;
+  item: SpotifyTrack | null;
+  currently_playing_type: string;
+  actions: {
+    disallows: {
+      resuming?: boolean;
+    };
+  };
+}
+
 export interface AuthState {
   token: string | null;
   refreshToken: string | null;

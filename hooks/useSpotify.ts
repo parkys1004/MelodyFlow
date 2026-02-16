@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { searchTracks, getRecommendations } from '../services/api';
+import { searchTracks, getRecommendations, fetchPlayerState } from '../services/api';
 import { useStore } from '../lib/store';
 
 export const useSearch = (query: string) => {
@@ -21,5 +21,17 @@ export const useRecommendations = (seedTrackIds: string[]) => {
     queryFn: () => getRecommendations(seedTrackIds),
     enabled: !!token && seedTrackIds.length > 0,
     staleTime: 1000 * 60 * 30, // 30 minutes
+  });
+};
+
+export const usePlayerState = () => {
+  const { token } = useStore();
+
+  return useQuery({
+    queryKey: ['playerState'],
+    queryFn: fetchPlayerState,
+    enabled: !!token,
+    refetchInterval: 3000, // Poll every 3 seconds
+    retry: false,
   });
 };

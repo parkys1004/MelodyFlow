@@ -1,10 +1,15 @@
 import { useStore } from '../lib/store';
-import { SearchResults, RecommendationsResponse } from '../types';
+import { SearchResults, RecommendationsResponse, PlaybackState } from '../types';
 
 // Standardize env var access for Vite
 const getEnv = (key: string) => {
+  // Check if import.meta.env exists to prevent "Cannot read properties of undefined"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (import.meta as any).env[key] || '';
+  if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (import.meta as any).env[key] || '';
+  }
+  return '';
 };
 
 // 1. Prioritize Vercel Env Var -> 2. Fallback to provided hardcoded ID
@@ -184,6 +189,10 @@ const fetchFromSpotify = async (endpoint: string, options: RequestInit = {}) => 
     }
   }
 
+  if (response.status === 204) {
+    return null;
+  }
+
   if (!response.ok) {
     throw new Error(`Spotify API Error: ${response.statusText}`);
   }
@@ -196,6 +205,14 @@ export const fetchNewReleases = () => fetchFromSpotify('/browse/new-releases?lim
 export const fetchFeaturedPlaylists = () => fetchFromSpotify('/browse/featured-playlists?limit=8');
 export const fetchUserPlaylists = () => fetchFromSpotify('/me/playlists?limit=20');
 export const fetchTopTracks = () => fetchFromSpotify('/me/top/tracks?limit=10&time_range=short_term');
+
+// Player API
+export const fetchPlayerState = (): Promise<PlaybackState | null> => fetchFromSpotify('/me/player');
+export const startResumePlayback = () => fetchFromSpotify('/me/player/play', { method: 'PUT' });
+export const pausePlayback = () => fetchFromSpotify('/me/player/pause', { method: 'PUT' });
+export const skipToNext = () => fetchFromSpotify('/me/player/next', { method: 'POST' });
+export const skipToPrevious = () => fetchFromSpotify('/me/player/previous', { method: 'POST' });
+export const setVolume = (percent: number) => fetchFromSpotify(`/me/player/volume?volume_percent=${percent}`, { method: 'PUT' });
 
 export const searchTracks = (query: string, limit = 10): Promise<SearchResults> => {
   if (!query) return Promise.resolve({});
