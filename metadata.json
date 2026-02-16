@@ -1,0 +1,5 @@
+{
+  "name": "MelodyFlow",
+  "description": "A Spotify-powered music explorer using React, Zustand, and TanStack Query.",
+  "requestFramePermissions": []
+}
