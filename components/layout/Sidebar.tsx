@@ -88,6 +88,7 @@ export const Sidebar = () => {
                               src={`https://picsum.photos/100/100?random=${i}`} 
                               className="w-full h-full object-cover opacity-70 group-hover:opacity-100" 
                               loading="lazy"
+                              alt={`Playlist ${i+1}`}
                             />
                         </div>
                         <div className="flex flex-col overflow-hidden">

@@ -132,7 +132,7 @@ const App = () => {
              ) : (
                 <div className="flex items-center gap-2 bg-black/50 p-1 pr-3 rounded-full hover:bg-black/70 transition-colors cursor-pointer">
                    {user?.images?.[0]?.url ? (
-                       <img src={user.images[0].url} alt="Profile" className="h-7 w-7 rounded-full object-cover" />
+                       <img src={user.images[0].url} alt="Profile" className="h-7 w-7 rounded-full object-cover" loading="lazy" />
                    ) : (
                        <div className="h-7 w-7 bg-zinc-700 rounded-full flex items-center justify-center">
                           <User className="h-4 w-4" />
